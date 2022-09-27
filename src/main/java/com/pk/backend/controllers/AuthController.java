@@ -10,11 +10,13 @@ import javax.validation.Valid;
 import com.pk.backend.models.Role;
 import com.pk.backend.models.User;
 import com.pk.backend.repository.RoleRepository;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.web.servlet.error.AbstractErrorController;
+import org.springframework.boot.web.error.ErrorAttributeOptions;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.CrossOrigin;
@@ -36,22 +38,26 @@ import com.pk.backend.security.services.UserDetailsImpl;
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
-  @Autowired
-  AuthenticationManager authenticationManager;
 
-  @Autowired
-  UserRepository userRepository;
+  private final AuthenticationManager authenticationManager;
 
-  @Autowired
-  RoleRepository roleRepository;
+  private final UserRepository userRepository;
 
-  @Autowired
-  PasswordEncoder encoder;
+  private final RoleRepository roleRepository;
 
-  @Autowired
-  JwtUtils jwtUtils;
+  private final PasswordEncoder encoder;
 
-  @PostMapping("/signin")
+  public AuthController(AuthenticationManager authenticationManager, UserRepository userRepository, RoleRepository roleRepository, PasswordEncoder encoder, JwtUtils jwtUtils) {
+    this.authenticationManager = authenticationManager;
+    this.userRepository = userRepository;
+    this.roleRepository = roleRepository;
+    this.encoder = encoder;
+    this.jwtUtils = jwtUtils;
+  }
+
+  private final JwtUtils jwtUtils;
+
+  @PostMapping("/login")
   public ResponseEntity<?> authenticateUser(@Valid @RequestBody LoginRequest loginRequest) {
 
     Authentication authentication = authenticationManager.authenticate(
@@ -62,7 +68,7 @@ public class AuthController {
     
     UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();    
     List<String> roles = userDetails.getAuthorities().stream()
-        .map(item -> item.getAuthority())
+        .map(GrantedAuthority::getAuthority)
         .collect(Collectors.toList());
 
     return ResponseEntity.ok(new JwtResponse(jwt, 
@@ -75,15 +81,11 @@ public class AuthController {
   @PostMapping("/signup")
   public ResponseEntity<?> registerUser(@Valid @RequestBody SignupRequest signUpRequest) {
     if (userRepository.existsByUsername(signUpRequest.getUsername())) {
-      return ResponseEntity
-          .badRequest()
-          .body(new MessageResponse("Error: Username is already taken!"));
+      throw new UserCreateException("Username is already taken");
     }
 
     if (userRepository.existsByEmail(signUpRequest.getEmail())) {
-      return ResponseEntity
-          .badRequest()
-          .body(new MessageResponse("Error: Email is already in use!"));
+      throw new UserCreateException("Email is already taken");
     }
 
     // Create new user's account
@@ -111,7 +113,6 @@ public class AuthController {
           Role modRole = roleRepository.findByName(ERole.ROLE_MODERATOR)
               .orElseThrow(() -> new RuntimeException("Error: Role is not found."));
           roles.add(modRole);
-
           break;
         default:
           Role userRole = roleRepository.findByName(ERole.ROLE_USER)
@@ -124,6 +125,6 @@ public class AuthController {
     user.setRoles(roles);
     userRepository.save(user);
 
-    return ResponseEntity.ok(new MessageResponse("User registered successfully!"));
+    return ResponseEntity.ok(new MessageResponse("User " + user + " registered successfully!"));
   }
 }
