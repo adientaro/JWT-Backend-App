@@ -3,8 +3,6 @@ package com.pk.backend.security.jwt;
 import java.util.Date;
 
 import lombok.extern.log4j.Log4j2;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Component;
@@ -19,8 +17,8 @@ public class JwtUtils {
   @Value("${app.jwtSecret}")
   private String jwtSecret;
 
-  @Value("${app.jwtExpirationMs}")
-  private int jwtExpirationMs;
+  @Value("${app.jwtExpiration}")
+  private int jwtexpiration;
 
   public String generateJwtToken(Authentication authentication) {
 
@@ -29,7 +27,7 @@ public class JwtUtils {
     return Jwts.builder()
         .setSubject((userPrincipal.getUsername()))
         .setIssuedAt(new Date())
-        .setExpiration(new Date((new Date()).getTime() + jwtExpirationMs))
+        .setExpiration(new Date((new Date()).getTime() + jwtexpiration * 1000))
         .signWith(SignatureAlgorithm.HS512, jwtSecret)
         .compact();
   }
